@@ -9,10 +9,14 @@ set -e
 echo "Updating package list and upgrading existing packages..."
 sudo apt update && sudo apt upgrade -y
 
-echo "Installing necessary packages: tigervncserver, openbox, foot terminal..."
-sudo apt install -y tigervnc-standalone-server openbox foot
+echo "Installing necessary packages: tigervncserver, openbox..."
+sudo apt install -y tigervnc-standalone-server openbox
 
-# Install noVNC via snap
+# Install foot terminal via Snap
+echo "Installing foot terminal via snap..."
+sudo snap install foot-terminal
+
+# Install noVNC via Snap
 echo "Installing noVNC via snap..."
 sudo snap install novnc
 
@@ -46,7 +50,7 @@ export DISPLAY=:1
 openbox &
 
 # Start a foot terminal
-foot &
+/snap/bin/foot-terminal &
 EOF
 
 chmod +x ~/.vnc/xstartup
