@@ -1,70 +1,73 @@
 #!/bin/bash
 
-# Script to install required packages, run TigerVNC server, Openbox, foot terminal, and noVNC
-# Tested on Ubuntu
+# Title: Run Ubuntu VM on Github Codespaces
+# Author: unkn1wn
+# Description: Updates the system, installs required packages, configures TigerVNC, and starts noVNC.
 
-# Exit immediately on errors
-set -e
+# Ensure the script runs with root privileges
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run this script as root using sudo."
+    exit 1
+fi
 
-echo "Updating package list and upgrading existing packages..."
-sudo apt update && sudo apt upgrade -y
+echo "Starting system update..."
+# Update and upgrade system
+apt update && apt upgrade -y
+if [ $? -ne 0 ]; then
+    echo "System update failed. Exiting."
+    exit 1
+fi
 
-echo "Installing necessary packages: tigervncserver, openbox..."
-sudo apt install -y tigervnc-standalone-server openbox
+echo "Installing snapd..."
+# Install snapd
+apt install -y snapd
+if [ $? -ne 0 ]; then
+    echo "Failed to install snapd. Exiting."
+    exit 1
+fi
 
-# Install foot terminal via Snap
-echo "Installing foot terminal via snap..."
-sudo snap install foot-terminal
+echo "Installing noVNC using snap..."
+# Install noVNC
+snap install novnc
+if [ $? -ne 0 ]; then
+    echo "Failed to install noVNC. Exiting."
+    exit 1
+fi
 
-# Install noVNC via Snap
-echo "Installing noVNC via snap..."
-sudo snap install novnc
+echo "Installing TigerVNC Standalone Server..."
+# Install TigerVNC standalone server
+apt install -y tigervnc-standalone-server
+if [ $? -ne 0 ]; then
+    echo "Failed to install TigerVNC server. Exiting."
+    exit 1
+fi
 
-# Define VNC server configuration
-VNC_RESOLUTION="1280x800"
-VNC_DISPLAY=":1"
+echo "Starting VNC server on display :1..."
+# Start VNC server for display :1
+vncserver :1
+if [ $? -ne 0 ]; then
+    echo "Failed to start VNC server. Exiting."
+    exit 1
+fi
 
-# Stop any existing VNC sessions on the target display
-echo "Stopping any existing VNC server on display $VNC_DISPLAY..."
-vncserver -kill "$VNC_DISPLAY" || true
+# Inform user to set the password
+echo "Please set your VNC password above if prompted."
 
-# Remove any password requirements for VNC
-echo "Disabling VNC password authentication..."
-mkdir -p ~/.vnc
-cat > ~/.vnc/config << 'EOF'
-securitytypes=None
-EOF
+# Wait a few seconds to allow VNC server startup
+sleep 5
 
-# Ensure permissions are correct
-chmod 600 ~/.vnc/config
+echo "Starting noVNC proxy..."
+# Start noVNC proxy
+cd /snap/novnc/current/utils || { echo "noVNC utils folder not found. Exiting."; exit 1; }
+./novnc_proxy --vnc localhost:5901 --listen localhost:6081 &
+if [ $? -ne 0 ]; then
+    echo "Failed to start noVNC proxy. Exiting."
+    exit 1
+fi
 
-# Create a custom xstartup script to launch Openbox and Foot terminal
-echo "Configuring VNC xstartup script..."
-cat > ~/.vnc/xstartup << 'EOF'
-#!/bin/sh
-unset SESSION_MANAGER
-unset DBUS_SESSION_BUS_ADDRESS
-export DISPLAY=:1
+echo "VNC server is running on display :1."
+echo "noVNC proxy is listening at http://localhost:6081"
+echo "You can access your VNC session using a browser at the above URL."
 
-# Start Openbox as the window manager
-openbox &
-
-# Start a foot terminal
-/snap/bin/foot-terminal &
-EOF
-
-chmod +x ~/.vnc/xstartup
-
-# Start the VNC server
-echo "Starting TigerVNC server on display $VNC_DISPLAY with resolution $VNC_RESOLUTION..."
-vncserver "$VNC_DISPLAY" -geometry "$VNC_RESOLUTION" -SecurityTypes=None
-
-# Start noVNC to expose the VNC server over the web
-NOVNC_PORT="6080"
-echo "Starting noVNC server on port $NOVNC_PORT..."
-/snap/bin/novnc --listen $NOVNC_PORT --vnc localhost:5901 &
-
-echo "noVNC is running. Access it via: http://localhost:$NOVNC_PORT/vnc.html"
-
-# Keep the script running to prevent exit
+# Exit script
 sleep infinity
